@@ -68,14 +68,17 @@ GameObjectsFactory::createDecorationObjectConfig(
 Use `UNIQ_ID("string")` macro to generate unique IDs from strings. Keeps your objects from conflicting with vanilla or other mods. Theorically you can modify original object if you set its id.
 
 ## Sprite Frames Unity?
+
 This mod is one of ways to use your own sprite frames for objects without editing original `GJ_GameSheet` or `GJ_GameSheet02`.
+
+https://github.com/user95401/geode-sprite-frames-unity
 
 ## Full example
 https://github.com/user95401/geode-game-objects-factory/blob/master/src/main.cpp#L247
 #### mod.json:
 ```json
 "dependencies": {
-	"user95401.sprite-frames-unity": ">=v1.0.0"
+	"user95401.sprite-frames-unity": ">=v1.0.0",
 	"user95401.game-objects-factory": ">=v1.0.0"
 }
 ```

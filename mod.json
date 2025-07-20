@@ -1,0 +1,32 @@
+{
+	"geode": "4.6.3",
+	"gd": {
+		"win": "2.2074",
+		"android": "2.2074",
+		"mac": "2.2074",
+		"ios": "2.2074"
+	},
+	"early-load": true,
+	"version": "1.0.0",
+	"id": "user95401.game-objects-factory",
+	"name": "Game Objects Factory",
+	"developer": "user95401",
+	"description": "The custom game objects thing for devs.",
+	"tags": [ "developer", "editor", "utility", "api" ],
+	"links": {
+		"community": "https://discord.gg/6SxAbk3bTA",
+		"homepage": "https://t.me/user95401_channel",
+		"source": "https://github.com/user95401/geode-game-objects-factory"
+	},
+	"api": {
+		"include": [
+			"include/*.hpp"
+		]
+	},
+	"dependencies": {
+		"user95401.sprite-frames-unity": {
+			"version": ">=v1.0.0",
+			"importance": "recommended"
+		}
+	}
+}

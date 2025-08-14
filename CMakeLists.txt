@@ -1,17 +1,18 @@
 cmake_minimum_required(VERSION 3.21)
+set(CMAKE_TLS_VERIFY 0) # Disable SSL verification because something is broken with it on Russia..
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "iOS" OR IOS)
     set(CMAKE_OSX_ARCHITECTURES "arm64")
 else()
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
 endif()
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 project(main)
 
 add_library(${PROJECT_NAME} SHARED
-    src/main.cpp
     src/main.cpp
     # Add any extra C++ source files here
 )

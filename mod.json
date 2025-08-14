@@ -6,27 +6,21 @@
 		"mac": "2.2074",
 		"ios": "2.2074"
 	},
-	"early-load": true,
-	"version": "1.1.0",
-	"id": "user95401.game-objects-factory",
-	"name": "Game Objects Factory",
+	"early-load": false,
+	"version": "1.0.0",
+	"id": "user95401.edit-account-id",
+	"name": "Edit Account ID",
 	"developer": "user95401",
-	"description": "The custom game objects thing for devs.",
-	"tags": [ "developer", "editor", "utility", "api" ],
+	"description": "Allows you to edit your saved account ID right in the game.",
+	"tags": [ "online", "customization", "cheat", "utility", "interface", "api" ],
 	"links": {
 		"community": "https://discord.gg/6SxAbk3bTA",
 		"homepage": "https://t.me/user95401_channel",
-		"source": "https://github.com/user95401/geode-game-objects-factory"
+		"source": "https://github.com/user95401/Edit-Account-ID"
 	},
 	"api": {
 		"include": [
 			"include/*.hpp"
 		]
-	},
-	"dependencies": {
-		"user95401.sprite-frames-unity": {
-			"version": ">=v1.0.0",
-			"importance": "recommended"
-		}
 	}
 }

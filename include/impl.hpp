@@ -421,3 +421,6 @@ inline void registerCustomObjects() {
 }
 
 #endif
+
+#undef THIS_CONF 
+#undef TRY_GET_CONF(p)

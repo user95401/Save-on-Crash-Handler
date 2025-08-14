@@ -1,4 +1,3 @@
-#include <main.hpp>
 
 #include <Geode/Geode.hpp>
 #include <Geode/ui/GeodeUI.hpp>
@@ -7,10 +6,60 @@ using namespace geode::prelude;
 #include <regex>
 #include <functional>
 
-#define THIS_CONF auto config = typeinfo_cast<GameObjectsFactory::GameObjectConfig*>(getUserObject("config"))
-#define TRY_GET_CONF(p) auto config = typeinfo_cast<GameObjectsFactory::GameObjectConfig*>(p->getUserObject("config"))
+static inline bool ALREADY_HAVE_GOF_IMPL;
 
-$execute{ GameObjectsFactory::getFactoryManager(); }
+#define THIS_CONF auto config = typeinfo_cast<GameObjectsFactory::GameObjectConfig*>(getUserObject("config"_spr))
+#define TRY_GET_CONF(p) auto config = typeinfo_cast<GameObjectsFactory::GameObjectConfig*>(p->getUserObject("config"_spr))
+
+#include <Geode/modify/MenuLayer.hpp>
+class $modify(MenuLayerObjectFactoryExt, MenuLayer) {
+    bool init() {
+        if (ALREADY_HAVE_GOF_IMPL) return MenuLayer::init();
+
+        for (auto searchPath : CCFileUtils::sharedFileUtils()->getSearchPaths()) {
+            auto file = std::string(searchPath.c_str()) + "register-game-objects.json";
+            if (!CCFileUtils::sharedFileUtils()->isFileExist(file)) continue;
+            auto parse = file::readJson(file).unwrapOrDefault();
+            for (auto v : parse) { // so silent
+                auto c = GameObjectsFactory::GameObjectConfig::create();
+
+                c->m_objectID = UNIQ_ID(v.dump(0).c_str());
+
+                if (v.contains("objID")) c->objID(v["objID"].asInt().unwrapOr(c->m_objectID));
+                if (v.contains("refID")) c->objID(v["refID"].asInt().unwrapOr(c->m_refObjectID));
+                if (v.contains("frame")) c->frame(v["frame"].asString().unwrapOr(c->m_spriteFrame));
+
+                if (v.contains("preset")) {
+                    auto preset = v["preset"].asString().unwrapOr("");
+                    if (preset == "deco") {
+                        auto detail = v["detail"].asString().unwrapOr("");
+                        c = detail.size() ? GameObjectsFactory::createDecorationObjectConfig(
+                            c->m_objectID, c->m_spriteFrame, detail
+                        ) : GameObjectsFactory::createDecorationObjectConfig(
+                            c->m_objectID, c->m_spriteFrame
+                        );
+                    }
+                    if (preset == "rotated") c = GameObjectsFactory::createRotatedConfig(
+                        c->m_objectID, c->m_spriteFrame);
+                    if (preset == "pulse") c = GameObjectsFactory::createPulseConfig(
+                        c->m_objectID, c->m_spriteFrame);
+                }
+
+                if (v.contains("tab")) c->tab(v["tab"].asInt().unwrapOr(c->m_createTabBar));
+                if (v.contains("insertIndex")) c->insertIndex(v["insertIndex"].asInt().unwrapOr(c->m_tabBarInsertIndex));
+                if (v.contains("btnBG")) c->btnBG(v["btnBG"].asInt().unwrapOr(c->m_createBtnBg));
+                c->registerMe();
+                //meant to be like "unity/GJ_GameSheet.plist" for custom frames via "Sprite Frames Unity" mod
+                if (v.contains("spritesheet")) CCSpriteFrameCache::get()->addSpriteFramesWithFile(
+                    v["spritesheet"].asString().unwrapOr("").c_str()
+                );
+            }
+        }
+
+        return MenuLayer::init();
+    };
+};
+$on_mod(Loaded) { ALREADY_HAVE_GOF_IMPL = GameObjectsFactory::getFactoryManager()->m_implID != getMod()->getID(); }
 
 inline static auto exchangeCustomObjectIDs(
     GameObject* object, CCArray* objects = nullptr,
@@ -52,7 +101,9 @@ inline static auto exchangeCustomObjectIDs(
 
 #include <Geode/modify/GJBaseGameLayer.hpp>
 class $modify(GJBaseGameLayerFactoryExt, GJBaseGameLayer) {
-    virtual void spawnObject(GameObject * object, double delay, gd::vector<int> const& remapKeys) {
+    void spawnObject(GameObject * object, double delay, gd::vector<int> const& remapKeys) {
+        if (ALREADY_HAVE_GOF_IMPL) return GJBaseGameLayer::spawnObject(object, delay, remapKeys);
+
         auto changedObjects = exchangeCustomObjectIDs(object);
         GJBaseGameLayer::spawnObject(object, delay, remapKeys);
         exchangeCustomObjectIDs(object, nullptr, changedObjects);
@@ -66,7 +117,9 @@ class $modify(GJBaseGameLayerFactoryExt, GJBaseGameLayer) {
 
 #include <Geode/modify/EnhancedGameObject.hpp>
 class $modify(EnhancedGameObjectFactoryExt, EnhancedGameObject) {
-    void activatedByPlayer(PlayerObject* p0) {
+    void activatedByPlayer(PlayerObject * p0) {
+        if (ALREADY_HAVE_GOF_IMPL) return EnhancedGameObject::activatedByPlayer(p0);
+
         EnhancedGameObject::activatedByPlayer(p0);
         if (THIS_CONF) if (auto fn = config->m_activatedByPlayer) fn(this, p0);
     }
@@ -74,7 +127,9 @@ class $modify(EnhancedGameObjectFactoryExt, EnhancedGameObject) {
 
 #include <Geode/modify/EffectGameObject.hpp>
 class $modify(EffectGameObjectFactoryExt, EffectGameObject) {
-    virtual void customSetup() {
+    void customSetup() {
+        if (ALREADY_HAVE_GOF_IMPL) return EffectGameObject::customSetup();
+
         auto changedObjects = exchangeCustomObjectIDs(this);
         EffectGameObject::customSetup();
         exchangeCustomObjectIDs(this, nullptr, changedObjects);
@@ -82,6 +137,8 @@ class $modify(EffectGameObjectFactoryExt, EffectGameObject) {
         if (THIS_CONF) if (auto fn = config->m_customSetup) fn(this);
     }
     void triggerActivated(float p0) {
+        if (ALREADY_HAVE_GOF_IMPL) return EffectGameObject::triggerActivated(p0);
+
         auto changedObjects = exchangeCustomObjectIDs(this);
         EffectGameObject::triggerActivated(p0);
         exchangeCustomObjectIDs(this, nullptr, changedObjects);
@@ -89,7 +146,9 @@ class $modify(EffectGameObjectFactoryExt, EffectGameObject) {
         // Call custom activation if available
         if (THIS_CONF) if (auto fn = config->m_triggerActivated) fn(this, p0);
     }
-    virtual void triggerObject(GJBaseGameLayer * p0, int p1, gd::vector<int> const* p2) {
+    void triggerObject(GJBaseGameLayer * p0, int p1, gd::vector<int> const* p2) {
+        if (ALREADY_HAVE_GOF_IMPL) return EffectGameObject::triggerObject(p0, p1, p2);
+
         EffectGameObject::triggerObject(p0, p1, p2);
 
         // Call custom trigger logic if available
@@ -100,20 +159,27 @@ class $modify(EffectGameObjectFactoryExt, EffectGameObject) {
 #include <Geode/modify/GameObject.hpp>
 class $modify(GameObjectFactoryExt, GameObject) {
     void customSetup() {
+        if (ALREADY_HAVE_GOF_IMPL) return GameObject::customSetup();
+
         GameObject::customSetup();
+
         // Call custom setup if available
         if (THIS_CONF) if (auto fn = config->m_customSetup) fn(this);
     }
     void resetObject() {
+        if (ALREADY_HAVE_GOF_IMPL) return GameObject::resetObject();
+
         GameObject::resetObject();
         // Call if available
         if (THIS_CONF) if (auto fn = config->m_resetObject) fn(this);
     }
     static GameObject* createWithKey(int p0) {
+        if (ALREADY_HAVE_GOF_IMPL) return GameObject::createWithKey(p0);
+
         if (auto config = GameObjectsFactory::getGameObjectConfig(p0)) {
             // Create base object
             auto object = GameObject::createWithKey(config->m_refObjectID);
-            object->setUserObject("config", config);
+            object->setUserObject("config"_spr, config);
 
             object->customSetup();
 
@@ -135,11 +201,13 @@ class $modify(GameObjectFactoryExt, GameObject) {
     }
 
     static GameObject* objectFromVector(gd::vector<gd::string>&p0, gd::vector<void*>&p1, GJBaseGameLayer * p2, bool p3) {
+        if (ALREADY_HAVE_GOF_IMPL) return GameObject::objectFromVector(p0, p1, p2, p3);
+
         auto object = GameObject::objectFromVector(p0, p1, p2, p3);
         if (!object) return object;
 
         if (auto config = GameObjectsFactory::getGameObjectConfig(object->m_objectID)) {
-            object->setUserObject("config", config);
+            object->setUserObject("config"_spr, config);
 
             if (auto effectObj = typeinfo_cast<EnhancedGameObject*>(object)) {
                 auto changedObjects = exchangeCustomObjectIDs(effectObj);
@@ -156,6 +224,8 @@ class $modify(GameObjectFactoryExt, GameObject) {
     }
 
     virtual gd::string getSaveString(GJBaseGameLayer * p0) {
+        if (ALREADY_HAVE_GOF_IMPL) return GameObject::getSaveString(p0);
+
         auto str = GameObject::getSaveString(p0);
 
         if (auto config = GameObjectsFactory::getGameObjectConfig(this->m_objectID)) {
@@ -171,6 +241,8 @@ class $modify(GameObjectFactoryExt, GameObject) {
 #include <Geode/modify/EditorUI.hpp>
 class $modify(EditorUIFactoryExt, EditorUI) {
     void editObject(cocos2d::CCObject * p0) {
+        if (ALREADY_HAVE_GOF_IMPL) return EditorUI::editObject(p0);
+
         auto objects = m_selectedObjects ? CCArrayExt<GameObject*>(m_selectedObjects) : CCArrayExt<GameObject*>();
         if (m_selectedObject) objects.push_back(m_selectedObject);
         for (auto object : objects) if (TRY_GET_CONF(object)) if (auto fn = config->m_onEditObject) {
@@ -182,6 +254,8 @@ class $modify(EditorUIFactoryExt, EditorUI) {
         exchangeCustomObjectIDs(m_selectedObject, m_selectedObjects, changedObjects);
     }
     void editObject2(cocos2d::CCObject * p0) {
+        if (ALREADY_HAVE_GOF_IMPL) return EditorUI::editObject2(p0);
+
         auto objects = m_selectedObjects ? CCArrayExt<GameObject*>(m_selectedObjects) : CCArrayExt<GameObject*>();
         if (m_selectedObject) objects.push_back(m_selectedObject);
         for (auto object : objects) if (TRY_GET_CONF(object)) if (auto fn = config->m_onEditObject2) {
@@ -193,6 +267,8 @@ class $modify(EditorUIFactoryExt, EditorUI) {
         exchangeCustomObjectIDs(m_selectedObject, m_selectedObjects, changedObjects);
     }
     void editObjectSpecial(int p0) {
+        if (ALREADY_HAVE_GOF_IMPL) return EditorUI::editObjectSpecial(p0);
+
         auto objects = m_selectedObjects ? CCArrayExt<GameObject*>(m_selectedObjects) : CCArrayExt<GameObject*>();
         if (m_selectedObject) objects.push_back(m_selectedObject);
         for (auto object : objects) if (TRY_GET_CONF(object)) if (auto fn = config->m_onEditObjectSpecial) {
@@ -205,12 +281,16 @@ class $modify(EditorUIFactoryExt, EditorUI) {
     }
 
     void updateButtons() {
+        if (ALREADY_HAVE_GOF_IMPL) return EditorUI::updateButtons();
+
         auto changedObjects = exchangeCustomObjectIDs(m_selectedObject, m_selectedObjects);
         EditorUI::updateButtons();
         exchangeCustomObjectIDs(m_selectedObject, m_selectedObjects, changedObjects);
     }
 
     void setupCreateMenu() {
+        if (ALREADY_HAVE_GOF_IMPL) return EditorUI::setupCreateMenu();
+
         EditorUI::setupCreateMenu();
 
         // Add all registered custom objects to appropriate tabs
@@ -221,10 +301,10 @@ class $modify(EditorUIFactoryExt, EditorUI) {
                 if (auto tab = CCArrayExt<EditButtonBar*>(m_createButtonBars)[config->m_createTabBar]) {
                     auto newb = this->getCreateBtn(config->m_objectID, config->m_createBtnBg);
                     if (config->m_tabBarInsertIndex == -1) tab->m_buttonArray->addObject(newb);
-					else tab->m_buttonArray->insertObject(newb, config->m_tabBarInsertIndex);
+                    else tab->m_buttonArray->insertObject(newb, config->m_tabBarInsertIndex);
                     tab->reloadItems(
-                        GameManager::get()->getIntGameVariable("0049"),
-                        GameManager::get()->getIntGameVariable("0050")
+                        GameManager::sharedState()->getIntGameVariable("0049"),
+                        GameManager::sharedState()->getIntGameVariable("0050")
                     );
                 }
             }
@@ -235,6 +315,8 @@ class $modify(EditorUIFactoryExt, EditorUI) {
 #include <Geode/modify/EditTriggersPopup.hpp>
 class $modify(EditTriggersPopupFactoryExt, EditTriggersPopup) {
     bool init(EffectGameObject * p0, cocos2d::CCArray * p1) {
+        if (ALREADY_HAVE_GOF_IMPL) return EditTriggersPopup::init(p0, p1);
+
         if (!EditTriggersPopup::init(p0, p1)) return false;
 
         // Check if this is a custom object and call custom edit setup
@@ -245,7 +327,7 @@ class $modify(EditTriggersPopupFactoryExt, EditTriggersPopup) {
 };
 
 //example test
-#if 0
+#if defined(GAME_OBJECTS_FACTORY_EXAMPLE_TEST_IMPL)
 
 void registerCustomObjects();
 $execute{ registerCustomObjects(); }
@@ -320,8 +402,8 @@ inline void registerCustomObjects() {
         GameObjectsFactory::createRingConfig(
             UNIQ_ID("test-ring"),
             "d_ball_06_001.png",
-            [](EnhancedGameObject* object, PlayerObject* plr) { 
-                plr->spiderTestJump(true); log::info("activated by player, {}, {}", object, plr); 
+            [](EnhancedGameObject* object, PlayerObject* plr) {
+                plr->spiderTestJump(true); log::info("activated by player, {}, {}", object, plr);
             }
         )->onEditObjectSpecial(
             [](EditorUI* ui, GameObject* game) {
@@ -343,7 +425,7 @@ inline void registerCustomObjects() {
 #endif
 
 //full test
-#if 0
+#if defined(GAME_OBJECTS_FACTORY_FULL_TEST_IMPL___)
 #define logCallbacks                                                                                                             \
 ->customSetup([](GameObject* object)                                                                                             \
     { log::info("custom setup, {}", object); }                                                                                   \
@@ -377,10 +459,10 @@ inline void registerCustomObjects() {
     GameObjectsFactory::createDecorationObjectConfig(UNIQ_ID("a6"), "d_sign_img_03_001.png")->registerMe();
     GameObjectsFactory::createDecorationObjectConfig(UNIQ_ID("a7"), "d_sign_img_02_001.png")->registerMe();
 
-    GameObjectsFactory::createDecorationObjectConfig(UNIQ_ID("asd1"), 
+    GameObjectsFactory::createDecorationObjectConfig(UNIQ_ID("asd1"),
         "blackCogwheel_03_001.png", "blackCogwheel_02_color_001.png")->registerMe();
 
-    GameObjectsFactory::createDecorationObjectConfig(UNIQ_ID("asd12"), 
+    GameObjectsFactory::createDecorationObjectConfig(UNIQ_ID("asd12"),
         "block001_02_color_001.png", "block006_05_001.png")->registerMe();
 
     GameObjectsFactory::registerGameObject(GameObjectsFactory::createPulseConfig(
@@ -423,4 +505,4 @@ inline void registerCustomObjects() {
 #endif
 
 #undef THIS_CONF 
-#undef TRY_GET_CONF(p)
+#undef TRY_GET_CONF

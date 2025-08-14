@@ -4,7 +4,7 @@ Abuse original GD logic to "add" your custom objects like triggers, deco, rings 
 
 Hooks into scary RobTop's object system and lets you add custom game objects with your own IDs and callbacks.
 
-## Why still isn't published on Geode Idex?
+## Why still isn't published on Geode Index?
 They said this to me:
 ```ps
 This mod shouldn't be used on the main game's server, 
@@ -12,10 +12,10 @@ as it could lead to tons of problems for users
 without the mod and also potentially the server. 
 It's a good idea though, I will say.
 ```
-So i recommend you to use [geode-download-dependency-cmake](https://github.com/user95401/geode-download-dependency-cmake) tool to include this mod as depency for yours.
+So i recommend you to use [geode-download-dependency-cmake](https://github.com/user95401/geode-download-dependency-cmake) tool to include this mod as dependency for yours.
 
-## Indepence (optionally)
-You can include WHOLE game objects factory IMPL in to your mod to avoid depency for user95401.game-objects-factory mod:
+## Independence (optionally)
+You can include WHOLE FACTORY IMPL in to your mod to fully avoid dependency for user95401.game-objects-factory mod:
 ```cpp
 //in your main.cpp (or any other .cpp whatever)
 
@@ -35,6 +35,7 @@ And in mod.json, add not important type of dep so it can work without user95401.
 	}
 }
 ```
+Using independence way you become the one of potential factory impl mod for others and yourself.
 
 ## Features
 

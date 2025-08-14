@@ -225,6 +225,7 @@ auto func(auto par = def) { mem = par; return this; }
     class Manager : public cocos2d::CCNode {
     public:
         ConfigRegistry* m_registry = nullptr;
+        std::string m_implID = "";
 
         CREATE_FUNC(Manager);
 
@@ -244,16 +245,17 @@ auto func(auto par = def) { mem = par; return this; }
      * Creates it automatically if it doesn't exist
      */
     inline Manager* getFactoryManager() {
-        auto gameManager = GameManager::get();
-        auto factory = static_cast<Manager*>(gameManager->getChildByID(
+        auto gamePresistNode = ObjectToolbox::sharedState();
+        auto factory = geode::cast::typeinfo_cast<Manager*>(gamePresistNode->getChildByID(
             "object-factory-manager"
         ));
 
         if (!factory) {
             factory = Manager::create();
+            factory->m_implID = geode::getMod()->getID();
             factory->setID("object-factory-manager");
-            gameManager->addChild(factory);
-            //geode::SceneManager::get()->keepAcrossScenes(gameManager);
+            gamePresistNode->addChild(factory);
+            //geode::SceneManager::get()->keepAcrossScenes(gamePresistNode);
         }
 
         return factory;
@@ -380,7 +382,7 @@ auto func(auto par = def) { mem = par; return this; }
      */
     inline GameObjectConfig* createTriggerConfig(
         int objectID,
-        const std::string& spriteFrame = "edit_eTimeEventBtn_001.png",
+        const std::string& spriteFrame = "edit_eEventLinkBtn_001.png",
         std::function<void(EffectGameObject*, GJBaseGameLayer*, int, gd::vector<int> const*)> triggerCallback = nullptr,
         std::function<void(EditTriggersPopup*, EffectGameObject*, cocos2d::CCArray*)> editCallback = nullptr
     ) {

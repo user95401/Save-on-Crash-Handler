@@ -1,41 +1,57 @@
-A simple Geode mod that lets you edit your saved account ID directly in the game.
+A cross-platform crash handling system for Geometry Dash that automatically saves your progress when the game crashes.
 
-### Features
+## What it does
 
-- Edit your account ID without external tools
-- Changes are saved automatically
-- Clean integration into the account login screen
-- Customizable input label and callback system for mod devs
+- Detects crashes and unexpected shutdowns
+- Automatically saves your game progress
+- Saves level editor progress
+- Works on Windows, macOS, iOS, and Android
+- Provides crash callbacks for other mods to use
 
-### Usage
+## For developers
 
-1. Open the account login (or Refresh Login) screen in Geometry Dash
-2. Find the new "Account ID" input field
-3. Enter your desired account ID
-4. Changes save automatically after a short delay
+Other mods can register their own crash callbacks.
 
-### For Developers
+Add to your `mod.json` the `dependencies`:
+```json
+"dependencies": {
+	"user95401.save-on-crash-handler": ">=v1.0.0"
+}
+```
+(supports `suggested` type)
 
-This mod provides an API for other mods without any reason:
+Usage:
 
 ```cpp
-EditAccountID::get()->onNewID([](int id) {
-    // Your code here
-});
-EditAccountID::get()->m_inputLabel = "lol";
+// Contains MBO and tools for shared CrashHandler*
+#include <user95401.save-on-crash-handler/include/main.hpp>
+
+void setupCrashHandler();
+$on_mod(Loaded) { setupCrashHandler(); }
+inline void setupCrashHandler() {
+    CrashHandler::get()->onCrash(
+        [](const std::string& crashInfo) {
+            // Your crash handling code here
+            log::info("Crash detected: {}", crashInfo);
+        }
+    );
+}
 ```
 
-Available callbacks:
-- `onNewID` - When account ID changes
-- `onInputSetup` - When input field is created
-- `onLabelSetup` - When label is created
-- `onInputTextChanged` - When input text changes
-- `onAccountLoginLayerShow` - When login layer appears
-- `onAccountLoginLayerSetup` - When login layer is set up
+Parameters of `onCrash` and `onLevelSavedAtCrash`:
+- `callback`: New function for callbacks list
+- `prepend`: Add to front of callback list (default: false)  
+- `replace`: Replace all existing callbacks (default: false)
 
-## The truth
-This mod was made for ability to refresh login for account with other id, preserving all save data (avoid unlink).
+## Technical details
 
-It will not help you login to other people's accounts, you still need a password for this. 
-The fact is that even if the password and name of the old and new acc 
-are same, game still will check the IDs. That's what the mod was for.
+- Uses signal handlers (SIGSEGV, SIGBUS, SIGFPE, SIGILL) on Unix-like systems
+- Tries to use structured exception handling on Windows
+- Includes stack traces on macOS/iOS
+
+## Notes
+
+- Crash detection isn't 100% guaranteed for all crash types
+- Some crashes might be too severe to allow saving
+- Stack overflow crashes are particularly hard to handle
+- Works best with access violations and similar common crashes

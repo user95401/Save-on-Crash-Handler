@@ -1,54 +1,157 @@
-#include <Geode/ui/TextInput.hpp>
-#include <Geode/ui/Notification.hpp>
-#include <Geode/utils/general.hpp>
+#pragma once
+#include <Geode/Geode.hpp>
+
+// even having all this inlcudes in geode im not sure about non-windows ones
+#include <signal.h>
+#ifdef GEODE_IS_WINDOWS
+#include <windows.h>
+#include <dbghelp.h>
+#elif defined(GEODE_IS_MACOS) || defined(GEODE_IS_IOS)
+#include <execinfo.h>
+#include <mach/mach.h>
+#elif defined(GEODE_IS_ANDROID)
+#include <unwind.h>
+#include <dlfcn.h>
+#endif
 
 using namespace geode::prelude;
 
-#include <Geode/modify/FLAlertLayer.hpp>
-class $modify(EditAccountID_FLAlertLayer, FLAlertLayer) {
-	void trySaveValue(float) {
-		if (Ref ew = GameManager::get()) ew->save();
-		if (Ref aw = Notification::create("Saved!")) aw->show();
-		if (Ref manager = GJAccountManager::get()) for (auto& a : EditAccountID::get()->m_onNewID) if (a) a(manager->m_accountID);
-	}
-	$override void show() {
-		FLAlertLayer::show();
-		if (Ref casted = typeinfo_cast<AccountLoginLayer*>(this)) {
-			// callback
-			for (auto& a : EditAccountID::get()->m_onAccountLoginLayerShow) if (a) a(casted);
-			// input
-			if (Ref accm = GJAccountManager::get()) if (Ref inp = TextInput::create(62.f, fmt::format("{}", accm->m_accountID).c_str())) {
-				// preset value
-				inp->setString(fmt::format("{}", accm->m_accountID).c_str());
-				// callback
-				inp->setCallback(
-					[inp = Ref(inp)](const std::string& p0) {
-						if (Ref manager = GJAccountManager::get()) manager->m_accountID = utils::numFromString<int>(
-							p0
-						).unwrapOr(manager->m_accountID);
-						if (inp) inp->unschedule(schedule_selector(EditAccountID_FLAlertLayer::trySaveValue));
-						if (inp) inp->scheduleOnce(schedule_selector(EditAccountID_FLAlertLayer::trySaveValue), 0.5f);
-						// callback
-						for (auto& a : EditAccountID::get()->m_onInputTextChanged) if (a) a(p0);
-					}
-				);
-				// position
-				inp->setPosition({ 145.000f, -86.000f });
-				// label
-				if (Ref inpInner = inp->getInputNode()) {
-					Ref lbl = CCLabelBMFont::create(EditAccountID::get()->m_inputLabel.c_str(), "bigFont.fnt");
-					if (lbl) lbl->setScale(0.400f);
-					if (lbl) inpInner->addChild(lbl, 1, "inp-label"_h);
-					// callback
-					for (auto& a : EditAccountID::get()->m_onLabelSetup) if (a) a(lbl);
-				}
-				// add to menu
-				if (Ref menu = this->m_buttonMenu) menu->addChild(inp);
-				// callback
-				for (auto& a : EditAccountID::get()->m_onInputSetup) if (a) a(inp);
-			};
-			// callback
-			for (auto& a : EditAccountID::get()->m_onAccountLoginLayerSetup) if (a) a(casted);
-		}
-	};
-};
+#ifdef GEODE_IS_WINDOWS
+inline LONG WINAPI windowsExceptionHandler(EXCEPTION_POINTERS* exceptionInfo) {
+    std::string crashInfo = fmt::format(
+        "Windows Exception: Code 0x{:X} at address 0x{:X}",
+        exceptionInfo->ExceptionRecord->ExceptionCode,
+        reinterpret_cast<uintptr_t>(exceptionInfo->ExceptionRecord->ExceptionAddress)
+    );
+
+    for (auto& fn : CrashHandler::get()->m_onCrashCallbacks) if (fn) fn(crashInfo);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+inline void signalHandler(int signal) {
+    std::string crashInfo = fmt::format("Signal received: {}", signal);
+    for (auto& fn : CrashHandler::get()->m_onCrashCallbacks) if (fn) fn(crashInfo);
+}
+
+inline void setupWindowsHandlers() {
+    // structured exception handling (might be overtaken...)
+    SetUnhandledExceptionFilter(windowsExceptionHandler);
+    // signal handlers
+    signal(SIGSEGV, signalHandler);
+    signal(SIGABRT, signalHandler);
+    signal(SIGFPE, signalHandler);
+    signal(SIGILL, signalHandler);
+    signal(SIGTERM, signalHandler);
+    signal(SIGINT, signalHandler);
+}
+
+#elif defined(GEODE_IS_MACOS) || defined(GEODE_IS_IOS)
+inline void unixSignalHandler(int signal, siginfo_t* info, void* context) {
+    std::string crashInfo;
+
+    switch (signal) {
+    case SIGSEGV:
+        crashInfo = fmt::format(
+            "Segmentation fault at address 0x{:X}", 
+            reinterpret_cast<uintptr_t>(info->si_addr)
+        );
+        break;
+    case SIGBUS:
+        crashInfo = "Bus error";
+        break;
+    case SIGFPE:
+        crashInfo = "Floating point exception";
+        break;
+    case SIGILL:
+        crashInfo = "Illegal instruction";
+        break;
+    default:
+        crashInfo = fmt::format("Unix signal {}", signal);
+        break;
+    }
+
+    // get stack trace
+    void* callstack[128];
+    int frames = backtrace(callstack, 128);
+    char** symbols = backtrace_symbols(callstack, frames);
+
+    if (symbols) {
+        crashInfo += "\nStack trace:\n";
+        for (int i = 0; i < frames; ++i) {
+            crashInfo += fmt::format("  {}: {}\n", i, symbols[i]);
+        }
+        free(symbols);
+    }
+
+    for (auto& fn : CrashHandler::get()->m_onCrashCallbacks) if (fn) fn(crashInfo);
+}
+
+inline void setupUnixHandlers() {
+    struct sigaction sa;
+    sa.sa_sigaction = unixSignalHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO;
+
+    sigaction(SIGSEGV, &sa, nullptr);
+    sigaction(SIGBUS, &sa, nullptr);
+    sigaction(SIGFPE, &sa, nullptr);
+    sigaction(SIGILL, &sa, nullptr);
+}
+
+#elif defined(GEODE_IS_ANDROID)
+inline void androidSignalHandler(int signal, siginfo_t* info, void* context) {
+    std::string crashInfo = fmt::format("Android signal {} at address 0x{:X}",
+        signal, reinterpret_cast<uintptr_t>(info->si_addr));
+
+    for (auto& fn : CrashHandler::get()->m_onCrashCallbacks) if (fn) fn(crashInfo);
+    std::abort();
+}
+
+inline void setupAndroidHandlers() {
+    struct sigaction sa;
+    sa.sa_sigaction = androidSignalHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO;
+
+    sigaction(SIGSEGV, &sa, nullptr);
+    sigaction(SIGBUS, &sa, nullptr);
+    sigaction(SIGFPE, &sa, nullptr);
+    sigaction(SIGILL, &sa, nullptr);
+}
+#endif
+
+void ModLoaded();
+$on_mod(Loaded) { ModLoaded(); }
+inline void ModLoaded() {
+    CrashHandler::get()->m_implID = CrashHandler::get()->m_implID.empty() ? geode::getMod()->getID() : CrashHandler::get()->m_implID;
+    if (CrashHandler::get()->m_implID != geode::getMod()->getID()) return; //already have impl from other mod
+
+    CrashHandler::get()->onCrash(
+        [](const std::string& message) {
+            log::error("Detected the {}", message);
+            log::info("Saving game...");
+            AppDelegate::sharedApplication()->trySaveGame(false);
+            log::info(" 1. Called virtual AppDelegate::trySaveGame");
+            GameManager::get()->save();
+			log::info(" 2. Called inherited GameManager::save");
+            LocalLevelManager::get()->save();
+			log::info(" 3. Called inherited LocalLevelManager::save");
+            //FileSaveManager::get()->save(); //wooow hey aa what is that thingggg
+            if (auto editor = GameManager::sharedState()->m_levelEditorLayer; editor) {
+                if (auto pause = EditorPauseLayer::create(editor)) {
+                    pause->saveLevel();
+                    for (auto& fn : CrashHandler::get()->m_onLevelSavedAtCrashCallbacks) if (fn) fn(Ref(editor->m_level));
+                    log::info(" '4. Saved level for current editor!");
+                }
+            }
+        }, "prepend"
+	);
+
+#ifdef GEODE_IS_WINDOWS
+    setupWindowsHandlers();
+#elif defined(GEODE_IS_MACOS) || defined(GEODE_IS_IOS)
+    setupUnixHandlers();
+#elif defined(GEODE_IS_ANDROID)
+    setupAndroidHandlers();
+#endif
+}

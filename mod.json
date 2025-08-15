@@ -6,17 +6,17 @@
 		"mac": "2.2074",
 		"ios": "2.2074"
 	},
-	"early-load": false,
+	"early-load": true,
 	"version": "1.0.0",
-	"id": "user95401.edit-account-id",
-	"name": "Edit Account ID",
+	"id": "user95401.save-on-crash-handler",
+	"name": "Save on Crash Handler",
 	"developer": "user95401",
-	"description": "Allows you to edit your saved account ID right in the game.",
-	"tags": [ "online", "customization", "cheat", "utility", "interface", "api" ],
+	"description": "Adds a crash handler to the game.",
+	"tags": [ "bugfix", "developer", "api" ],
 	"links": {
 		"community": "https://discord.gg/6SxAbk3bTA",
 		"homepage": "https://t.me/user95401_channel",
-		"source": "https://github.com/user95401/Edit-Account-ID"
+		"source": "https://github.com/user95401/Save-on-Crash-Handler"
 	},
 	"api": {
 		"include": [
